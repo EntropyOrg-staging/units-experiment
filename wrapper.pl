@@ -40,3 +40,5 @@ my $t = UnitHandler->new( data => pdl(q[3 3]) , unit => 's' );
 my $dt = $d * $t;
 
 say "$d * $t = $dt";
+
+use DDP; p overload::Method($d, '*');
