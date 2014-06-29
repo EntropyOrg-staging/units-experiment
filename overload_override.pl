@@ -17,6 +17,25 @@ sub unit {
 	$_unit->{ Scalar::Util::refaddr $self };
 }
 
+
+package PDL::UnitRole;
+
+use Moo::Role;
+use Data::Perl qw(number);
+use Scalar::Util;
+
+around qw(sumover cumusumover avg sum) => sub {
+	my $orig = shift;
+	my ($self) = @_;
+	my $ret = $orig->(@_);
+	$ret = number($ret) if !ref $ret and Scalar::Util::looks_like_number($ret);
+	OOverload->mangle($ret, $self->unit); # propagates
+};
+
+package Unit;
+
+use Carp;
+
 sub op_unit_mult {
 	my ($x, $y, $o) = @_;
 	my $unit_prod = "@{[$x->unit]}*@{[$y->unit]}";
@@ -29,7 +48,7 @@ sub op_unit_div {
 
 sub op_unit_add {
 	my ($x, $y, $o) = @_;
-	die "Units not compatible: @{[$x->unit]} != @{[$y->unit]}" unless $x->unit eq $y->unit;
+	confess "Units not compatible: @{[$x->unit]} != @{[$y->unit]}" unless $x->unit eq $y->unit;
 	$x->unit;
 }
 
@@ -37,17 +56,20 @@ sub op_unit_sub {
 	&op_unit_add;
 }
 
-
 package OOverload;
 
 our $OVERLOADED;
+use Scalar::Util;
 
 sub mangle {
 	my ($class, $object, $unit) = @_;
 
 
-	unless( exists $OVERLOADED->{ ref $object } ) {
+	unless( exists $OVERLOADED->{ ref $object } ) { # it already has UnitRole
 		Moo::Role->apply_roles_to_object($object, 'UnitRole');
+		if( $object->isa('PDL') ) {
+			Moo::Role->apply_roles_to_object( $object, 'PDL::UnitRole' );;
+		}
 	}
 
 	$object->unit($unit);
@@ -56,10 +78,10 @@ sub mangle {
 	unless( exists $OVERLOADED->{ $package_of_overload } ) {
 		my %new_ops;
 		my %op_table = ( # these should be better
-			'+' => \&UnitRole::op_unit_add,
-			'-' => \&UnitRole::op_unit_sub,
-			'*' => \&UnitRole::op_unit_mult,
-			'/' => \&UnitRole::op_unit_div,
+			'+' => \&Unit::op_unit_add,
+			'-' => \&Unit::op_unit_sub,
+			'*' => \&Unit::op_unit_mult,
+			'/' => \&Unit::op_unit_div,
 		);
 		for my $op (keys %op_table) {
 			my $op_func = $op_table{$op};
@@ -78,23 +100,29 @@ sub mangle {
 			$overload_orig_str = \&PDL::Core::string;
 		} elsif( not defined $overload_orig_str ) {
 			# last resort
-			$overload_orig_str = \&overload::StrVal;
+			# does it numify?
+			my $scalar_fallback =  sub {
+				my ($x) = @_;
+				if( Scalar::Util::reftype($x) eq 'SCALAR' ) {
+					$$x;
+				} else {
+					&overload::StrVal;
+				}
+			};
+
+			$overload_orig_str = overload::Method($object, '0+') // $scalar_fallback;
 		}
 		my $overload_new_str = sub {
 			my ($x, $o) = @_;
 			my $obj_str = $overload_orig_str->(@_);
 			"$obj_str~@{[$x->unit]}";
 		};
-
-		my $rest = sub {
-			#$a, 3, 1, '+'
-		};
 		{
 			# warning!
 			eval qq|
 			package $package_of_overload;
 			use overload \%new_ops,
-				'""' => \$overload_new_str
+				'""' => \$overload_new_str;
 			|;
 		}
 		$OVERLOADED->{ $package_of_overload } = 1;
@@ -122,6 +150,17 @@ my $z = $p * $q;
 say "$p * $q = $z";
 
 say "$z + $y = @{[$z + $y]}";
+
+say "$p / $q = @{[$p / $q]}";
+
+say $p->sumover;
+say $p->cumusumover;
+
+
+say "--\nData::Perl::Number --- bug territory";
+my $gg = $p->avg;
+say "$gg";
+say overload::Method($gg, '""')->($gg);
 
 eval {
 	my $g = $z + $p;
