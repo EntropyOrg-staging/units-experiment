@@ -14,7 +14,12 @@ sub unit {
 	if( defined $unit ) {
 		$_unit->{ Scalar::Util::refaddr $self } = $unit;
 	}
-	$_unit->{ Scalar::Util::refaddr $self } // 'no unit!';
+	$_unit->{ Scalar::Util::refaddr $self } // '';
+}
+
+sub is_unit_dimensionless {
+	my ($self) = @_;
+	$self->unit eq '';
 }
 
 
@@ -40,12 +45,16 @@ use Carp;
 
 sub op_unit_mult {
 	my ($x, $y, $o) = @_;
-	my $unit_prod = "@{[$x->unit]}*@{[$y->unit]}";
+	my @prod = ( ($x->unit)x!!( not $x->is_unit_dimensionless ),
+		($y->unit)x!!( not $y->is_unit_dimensionless ) );
+	my $unit_prod = join "*", @prod;
 }
 
 sub op_unit_div {
 	my ($x, $y, $o) = @_;
-	my $unit_prod = "@{[$x->unit]}/@{[$y->unit]}";
+	my @prod = ( ($x->unit)x!!( not $x->is_unit_dimensionless ),
+		($y->unit)x!!( not $y->is_unit_dimensionless ) );
+	my $unit_prod = join "/", @prod;
 }
 
 sub op_unit_add {
@@ -147,6 +156,7 @@ package main;
 use Test::Most;
 use PDL;
 use Data::Perl qw(number);
+use Number::Fraction;
 
 # compile once to enable SvAMAGIC on new objects from each package
 # RT #112708: Overload in runtime <https://rt.perl.org/Ticket/Display.html?id=112708>
@@ -194,5 +204,11 @@ is( "@{[$p->avg]}", "3~m", "Average keeps the same units");
 
 throws_ok { my $g = $z + $p; 1 } qr/Units not compatible/, q|Can not add 'm*s' to 'm'|;
 
+my $half = OOverload->mangle(Number::Fraction->new(1, 2) , 'cup');
+my $three = OOverload->mangle(Number::Fraction->new(3), '');
+
+my $three_halves = $half * $three;
+
+is( "$three_halves", '3/2~cup', 'multiplying fractions times dimensionless value');
 
 done_testing;
