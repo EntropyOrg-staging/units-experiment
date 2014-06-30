@@ -71,11 +71,13 @@ sub mangle {
 	my ($class, $object, $unit) = @_;
 
 
+	my @roles;
+	push @roles, 'UnitRole';
+	push @roles, 'PDL::UnitRole' if $object->isa('PDL');
+	my $role_class = Moo::Role->create_class_with_roles(ref $object, @roles);
 	unless( exists $OVERLOADED->{ ref $object } ) { # it already has UnitRole
-		Moo::Role->apply_roles_to_object($object, 'UnitRole');
-		if( $object->isa('PDL') ) {
-			Moo::Role->apply_roles_to_object( $object, 'PDL::UnitRole' );;
-		}
+		eval "package $role_class; use overload fallback => undef;" unless overload::Overloaded($object);
+		Moo::Role->apply_roles_to_object( $object, @roles );;
 	}
 
 	$object->unit($unit);
@@ -145,12 +147,13 @@ sub mangle {
 
 package main;
 
+use Test::Most;
 use PDL;
 use Data::Perl qw(number);
 
 # compile once to enable SvAMAGIC on new objects from each package
 # RT #112708: Overload in runtime <https://rt.perl.org/Ticket/Display.html?id=112708>
-OOverload->mangle( pdl(0), 'm' );
+#OOverload->mangle( pdl(0), 'm' );
 OOverload->mangle( number(0), 'm' );
 
 my $p = pdl q[4 2];
@@ -159,32 +162,34 @@ my $q = pdl q[2 3];
 OOverload->mangle( $p, 'm' );
 OOverload->mangle( $q, 's' );
 
-say $p;
-say $q;
+is( "$p", "[4 2]~m", '$p is a PDL in metres');
+is( "$q", "[2 3]~s", '$q is a PDL in seconds');
 
 my $y = OOverload->mangle( pdl(q[2 2]) , 'm*s' );
 
+is( "$y", "[2 2]~m*s", '$y is a PDL in m*s');
+
 my $z = $p * $q;
-say "$p * $q = $z";
+is( "$z", '[8 6]~m*s', q|multiplying units of 'm' and 's' gives 'm*s'|);
+diag "$p * $q = $z";
 
-say "$z + $y = @{[$z + $y]}";
+my $add_z_y = $z + $y;
+is( "$add_z_y", '[10 8]~m*s', q|Two 'm*s' units can be added|);
+diag "$z + $y = $add_z_y";
 
-say "$p / $q = @{[$p / $q]}";
 
-say $p->sumover;
-say $p->cumusumover;
+my $div_p_q = $p / $q;
+is( "$div_p_q", '[2 0.66666667]~m/s', q|Dividing units of 'm' by 's' gives 'm/s'|);
+diag "$p / $q = $div_p_q";
+
+is( "@{[$p->sumover]}", "6~m", 'Summing keeps the same units');
+is( "@{[$p->cumusumover]}", "[4 6]~m", 'Cumulative summing keeps the same units');
 
 
 #say "--\nData::Perl::Number --- bug territory";
-my $gg = $p->avg;
-say $gg;
-#say overload::Method($gg, '""')->($gg);
-#say $gg;
+is( "@{[$p->avg]}", "3~m", "Average keeps the same units");
 
-# it works the second time
-my $vv = $p->avg;
-say $vv;
+throws_ok { my $g = $z + $p; 1 } qr/Units not compatible/, q|Can not add 'm*s' to 'm'|;
 
-eval {
-	my $g = $z + $p;
-} or print "can't add: $@\n";
+
+done_testing;
