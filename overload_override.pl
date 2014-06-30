@@ -14,7 +14,7 @@ sub unit {
 	if( defined $unit ) {
 		$_unit->{ Scalar::Util::refaddr $self } = $unit;
 	}
-	$_unit->{ Scalar::Util::refaddr $self };
+	$_unit->{ Scalar::Util::refaddr $self } // 'no unit!';
 }
 
 
@@ -72,6 +72,7 @@ sub mangle {
 	push @roles, 'UnitRole';
 	push @roles, 'PDL::UnitRole' if $object->isa('PDL');
 	my $role_class = Moo::Role->create_class_with_roles(ref $object, @roles);
+	#unless( $object->can('unit') ) { # it already has UnitRole
 	unless( exists $OVERLOADED->{ ref $object } ) { # it already has UnitRole
 		Moo::Role->apply_roles_to_object( $object, @roles );;
 	}
