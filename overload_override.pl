@@ -4,6 +4,10 @@ use strict;
 use warnings;
 use v5.16;
 
+#package Data::Perl::Number;
+#use overload '0+' => sub { ${$_[0]} };
+#use overload '""' => sub { ${$_[0]} };
+
 package UnitRole;
 use Moo::Role;
 use Scalar::Util;
@@ -28,7 +32,9 @@ around qw(sumover cumusumover avg sum) => sub {
 	my $orig = shift;
 	my ($self) = @_;
 	my $ret = $orig->(@_);
-	$ret = number($ret) if !ref $ret and Scalar::Util::looks_like_number($ret);
+	if( !ref $ret and Scalar::Util::looks_like_number($ret) ) {
+		$ret = number($ret);
+	}
 	OOverload->mangle($ret, $self->unit); # propagates
 };
 
@@ -98,13 +104,19 @@ sub mangle {
 		if( $object->isa('PDL') ) {
 			# hack
 			$overload_orig_str = \&PDL::Core::string;
+		#} elsif( $object->isa('Data::Perl::Number') ) {
+			#$overload_orig_str = sub {
+				#overload::StrVal( ${ $_[0] } );
+			#};
 		} elsif( not defined $overload_orig_str ) {
 			# last resort
 			# does it numify?
 			my $scalar_fallback =  sub {
 				my ($x) = @_;
 				if( Scalar::Util::reftype($x) eq 'SCALAR' ) {
-					$$x;
+					overload::StrVal($$x);
+				} elsif( Scalar::Util::reftype($x) eq 'REF' ) {
+					overload::StrVal($$x);
 				} else {
 					&overload::StrVal;
 				}
@@ -159,7 +171,7 @@ say $p->cumusumover;
 
 say "--\nData::Perl::Number --- bug territory";
 my $gg = $p->avg;
-say "$gg";
+say $gg;
 say overload::Method($gg, '""')->($gg);
 
 eval {
