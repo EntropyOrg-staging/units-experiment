@@ -113,9 +113,7 @@ sub mangle {
 			# does it numify?
 			my $scalar_fallback =  sub {
 				my ($x) = @_;
-				if( Scalar::Util::reftype($x) eq 'SCALAR' ) {
-					overload::StrVal($$x);
-				} elsif( Scalar::Util::reftype($x) eq 'REF' ) {
+				if( Scalar::Util::reftype($x) =~ /^(SCALAR|REF)$/ ) {
 					overload::StrVal($$x);
 				} else {
 					&overload::StrVal;
@@ -131,6 +129,7 @@ sub mangle {
 		};
 		{
 			# warning!
+			#print "--$package_of_overload--\n";#DEBUG
 			eval qq|
 			package $package_of_overload;
 			use overload \%new_ops,
@@ -140,12 +139,18 @@ sub mangle {
 		$OVERLOADED->{ $package_of_overload } = 1;
 	}
 
+	overload::Overloaded($object);
 	$object;
 }
 
 package main;
 
 use PDL;
+use Data::Perl qw(number);
+
+# compile once to enable SvAMAGIC on new objects from each package
+OOverload->mangle( pdl(0), 'm' );
+OOverload->mangle( number(0), 'm' );
 
 my $p = pdl q[4 2];
 my $q = pdl q[2 3];
@@ -169,10 +174,15 @@ say $p->sumover;
 say $p->cumusumover;
 
 
-say "--\nData::Perl::Number --- bug territory";
+#say "--\nData::Perl::Number --- bug territory";
 my $gg = $p->avg;
 say $gg;
-say overload::Method($gg, '""')->($gg);
+#say overload::Method($gg, '""')->($gg);
+#say $gg;
+
+# it works the second time
+my $vv = $p->avg;
+say $vv;
 
 eval {
 	my $g = $z + $p;
