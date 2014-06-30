@@ -2,11 +2,7 @@
 
 use strict;
 use warnings;
-use v5.16;
-
-#package Data::Perl::Number;
-#use overload '0+' => sub { ${$_[0]} };
-#use overload '""' => sub { ${$_[0]} };
+use v5.18;
 
 package UnitRole;
 use Moo::Role;
@@ -66,6 +62,7 @@ package OOverload;
 
 our $OVERLOADED;
 use Scalar::Util;
+use Package::Stash;
 
 sub mangle {
 	my ($class, $object, $unit) = @_;
@@ -76,7 +73,6 @@ sub mangle {
 	push @roles, 'PDL::UnitRole' if $object->isa('PDL');
 	my $role_class = Moo::Role->create_class_with_roles(ref $object, @roles);
 	unless( exists $OVERLOADED->{ ref $object } ) { # it already has UnitRole
-		eval "package $role_class; use overload fallback => undef;" unless overload::Overloaded($object);
 		Moo::Role->apply_roles_to_object( $object, @roles );;
 	}
 
@@ -153,8 +149,14 @@ use Data::Perl qw(number);
 
 # compile once to enable SvAMAGIC on new objects from each package
 # RT #112708: Overload in runtime <https://rt.perl.org/Ticket/Display.html?id=112708>
+# so either run these ahead of time or use v5.18
+#
+# see also:
+# <https://metacpan.org/source/MooseX::Role::WithOverloading::Meta::Role::Application>
+# <https://metacpan.org/source/MooseX::Role::WithOverloading::Meta::Role::Application::FixOverloadedRefs>
+# <https://metacpan.org/source/ETHER/MooseX-Role-WithOverloading-0.13/WithOverloading.xs>
 #OOverload->mangle( pdl(0), 'm' );
-OOverload->mangle( number(0), 'm' );
+#OOverload->mangle( number(0), 'm' );
 
 my $p = pdl q[4 2];
 my $q = pdl q[2 3];
