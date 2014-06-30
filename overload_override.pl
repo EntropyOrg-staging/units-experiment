@@ -149,6 +149,7 @@ use PDL;
 use Data::Perl qw(number);
 
 # compile once to enable SvAMAGIC on new objects from each package
+# RT #112708: Overload in runtime <https://rt.perl.org/Ticket/Display.html?id=112708>
 OOverload->mangle( pdl(0), 'm' );
 OOverload->mangle( number(0), 'm' );
 
