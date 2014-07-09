@@ -158,6 +158,12 @@ use PDL;
 use Data::Perl qw(number);
 use Number::Fraction;
 
+# FUTURE
+use Math::FixedPoint;
+use Data::Float;
+use Data::Integer;
+use Scalar::Number;
+
 # compile once to enable SvAMAGIC on new objects from each package
 # RT #112708: Overload in runtime <https://rt.perl.org/Ticket/Display.html?id=112708>
 # so either run these ahead of time or use v5.18
