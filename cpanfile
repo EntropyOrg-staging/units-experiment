@@ -1,0 +1,11 @@
+requires 'Carp';
+requires 'Data::Float';
+requires 'Data::Integer';
+requires 'Data::Perl';
+requires 'Math::FixedPoint';
+requires 'Moo';
+requires 'Number::Fraction';
+requires 'Package::Stash';
+requires 'PDL';
+#requires 'Scalar::Number';
+requires 'Test::Most';
